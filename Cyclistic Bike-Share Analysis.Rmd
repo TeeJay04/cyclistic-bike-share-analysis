@@ -1,0 +1,697 @@
+---
+title: "Cyclistic Bike-Share Analysis"
+author: "Tibor Janosy"
+date: "2025-08-20"
+output: html_document
+---
+
+# Cyclistic Bike-Share Analysis
+### Google Data Analytics - Capstone Project
+
+## Introduction
+
+Cyclistic is a fictional bike-sharing company in Chicago, launched in 2016, with
+a fleet of 5,824 bicycles that are geotracked and locked into a network of
+692 stations across Chicago.
+
+Pricing plans:
+
+* single-ride passes
+* full-day passes
+* annual memberships
+
+The first two plans are used by the so-called *casual riders*, while the
+third plan is for *members*.
+
+As annual memberships are the most profitable plan for the company,
+the **main goal** is to *convert casual riders into annual members*.
+
+We follow the 6-step model of Data Analysis:
+
+1. Ask
+2. Prepare
+3. Process
+4. Analyze
+5. Share
+6. Act
+
+The data we use was collected between 2019-2020.
+
+## 1. Ask
+
+### 1.1 Business Task
+
+Identify patterns in the behavior of casual riders vs. members.
+
+### 1.2 Key Stakeholders
+
+* Cyclistic Executive Team
+* Lily Moreno - Marketing Director
+* Cyclistic Marketing Analytics Team
+
+### 1.3 Metrics Used for the Analysis
+
+* Tripduration
+* Start Time (day of the week, hour of the day)
+* Usertype (member/casual rider)
+* Start Station (geographic distribution)
+* Gender
+* Birthyear
+
+## 2. Prepare
+
+### 2.1 Data Location and Download
+
+The datasets Divvy 2019 Q1 and Divvy 2020 Q1 were downloaded in csv format
+from Google Sheets links provided by the Case Study Description.
+The data has been made available by Motivate International Inc. under this [license](https://divvybikes.com/data-license-agreement).
+
+This is public data that can be used to explore how different customer types
+are using Cyclistic bikes. On the other hand, data privacy issues prohibit using
+riders’ personally identifiable information. This means that connecting pass purchases
+to credit card numbers to determine if casual riders live in the Cyclistic
+service area or if they have purchased multiple single passes will not be possible.
+
+### 2.2 Data Organization
+
+##### install packages
+
+```{r install packages}
+#install.packages("tidyverse")
+```
+
+##### load packages
+
+```{r load packages}
+library(tidyverse)
+```
+##### setup for knitting plots
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.path = file.path("figures", ""),  # Always creates relative "figures/" folder
+  dev = "ragg_png",                     # More stable on Windows
+  echo = TRUE
+)
+```
+
+
+#### 2.2.1 File Format
+
+The data is saved in csv format.
+
+##### import datasets
+
+```{r import datasets}
+trips_2019_Q1 <- read.csv("Divvy_Trips_2019_Q1.csv")
+trips_2020_Q1 <- read.csv("Divvy_Trips_2020_Q1.csv")
+```
+
+#### 2.2.2 Data Structure
+
+##### inspect the first dataset
+
+```{r inspecting the first dataset}
+head(trips_2019_Q1)
+colnames(trips_2019_Q1)
+str(trips_2019_Q1)
+```
+
+##### inspect the second dataset
+
+```{r inspecting the second dataset}
+head(trips_2020_Q1)
+colnames(trips_2020_Q1)
+str(trips_2020_Q1)
+```
+
+The data is split into 2 quarterly files, organized as *Wide Data*,
+where every row corresponds to a distinct trip.
+
+The schema of the two dataset differs slightly, with 12 variables in the first
+dataset and 13 variables in the second. Also, column names are different in the
+two datasets for the same type of data (e.g. start_time vs. started_at),
+so name-cleaning will be necessary.
+
+The columns contain **Numeric** and **Character** type data about the:
+
+* *bike trip* itself – when and where it happened  
+* *user* – personal data
+
+### 2.3 Data Credibility
+
+We use the **ROCCC** framework for assessing data credibility:
+
+
+Since the datasets we analyze contain all trips from a certain time period,
+in other words, we examine the whole population and not just a sample,
+there is no possibility for *Sampling Bias*, hence the data is **Reliable**.
+
+Since the data we use is *Internal Data* collected by the company that
+operates the Bike-Share business, it is by default **Original**, and **Cited**.
+
+The data is **Comprehensive** for the given time period of the year: Q1. On the
+other hand, monthly analysis over the full 12 months of the year is not possible,
+since data for Q2-Q4 is missing.
+
+Another issue is with the fact that the data was collected in 2019 - 2020,
+so it is not **Current**, but it can be used for a demonstrative analysis like this.
+
+As a conclusion, we will analyze **Good**, **Credible** data, with slight shortcomings.
+
+## 3. Process
+
+### 3.1 Filter to Check Missing Values
+
+
+
+Next, **Filter** all the data for NULL values and count the number of filtered rows.
+
+##### count NULL values overall
+
+```{r filter for NULL values}
+null_2019 <- trips_2019_Q1 %>%
+  filter(if_any(everything(), is.na)) %>%
+  nrow()
+
+null_2020 <- trips_2020_Q1 %>%
+  filter(if_any(everything(), is.na)) %>%
+  nrow()
+```
+
+##### visualize the proportion of rows with missing data in the two dataset
+
+```{r viz for missing data, message = FALSE, warning=FALSE}
+
+# to replace scientific notation with a comma on the y-axis label
+library(scales)
+
+# data frame for visualization
+time_period <- c('Q1_2019', 'Q1_2020')
+non_null_no_rows <- c(nrow(trips_2019_Q1) - null_2019, nrow(trips_2020_Q1) - null_2020)
+null_no_rows <- c(null_2019, null_2020)
+total_no_rows <- c(nrow(trips_2019_Q1), nrow(trips_2020_Q1))
+
+no_rows <- data.frame(time_period,
+                      null_no_rows,
+                      non_null_no_rows,
+                      total_no_rows)
+
+# pivot longer to prepare the data for the stacked bar chart
+no_rows_long <- no_rows %>%
+  pivot_longer(cols = c(null_no_rows, non_null_no_rows),
+               names_to = "row_type",
+               values_to = "count")
+
+# set factor levels: null on top by putting it first
+ no_rows_long$row_type <- factor(no_rows_long$row_type,
+                                 levels = c("null_no_rows", "non_null_no_rows"),
+                                 labels = c("Null Rows", "Non-Null Rows"))
+
+# plot
+ggplot(no_rows_long, aes(x = time_period, y = count, fill = row_type)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Null vs Non-Null Rows",
+       x = "Time Period",
+       y = "Number of Rows",
+       fill = "Row Type") +
+  scale_y_continuous(labels = comma) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Filtering shows that over 18,000 rows (around 5%) in the trips_2019_Q1 dataset
+have at least one of their values missing.
+This means that it will be necessary to check for null values during analysis,
+but the amount of incomplete rows being relatively low,  they won't affect the
+conclusions of the analysis.
+
+### 3.2 Check the Data for Errors
+
+#### 3.2.1 Check trip dates
+
+**Sort** both datasets ascending and descending by the *Start Time* of the trips,
+to see the range of the trip dates.
+
+##### sort by start time - ascending and descending
+
+```{r sorting by start time}
+trips_2019_Q1 %>%
+  arrange(start_time) %>%
+  head()
+
+trips_2019_Q1 %>%
+  arrange(desc(start_time)) %>%
+  head()
+
+trips_2020_Q1 %>%
+  arrange(started_at) %>%
+  head()
+
+trips_2020_Q1 %>%
+  arrange(desc(started_at)) %>%
+  head()
+```
+
+The sorting operation shows that the data falls into Q1 2019 and Q1 2020 respectively,
+for the two datasets.
+
+#### 3.2.2. Check both datasets for duplicate entries
+
+in trips_2019_Q1 by trip_id
+
+```{r check dataset1 for duplicates}
+trips_2019_Q1 %>%
+  group_by(trip_id) %>%
+  filter(n() > 1) # n() counts the number of rows inside each group
+```
+
+in trips_2020_Q1 by ride_id
+
+```{r check dataset2 for duplicates}
+trips_2020_Q1 %>%
+  group_by(ride_id) %>%
+  filter(n() > 1) # n() counts the number of rows inside each group
+```
+
+Result: no duplicates were found in the two datasets
+
+#### 3.2.3 Check trip duration - only applicable for **trips_2019**
+
+Does the tripduration column accurately reflect the difference in seconds
+between start_time and end_time?
+
+Result: Using Excel, we've found negligible differences in 24 rows
+
+#### 3.2.4 Check birth year - only applicable for **trips_2019**
+
+Does the birth year make sense?
+
+```{r check birthyear, message = FALSE, warning=FALSE}
+trips_2019_Q1 <- arrange(trips_2019_Q1, birthyear)
+
+# to replace scientific notation with a comma on the y-axis label
+library(scales)
+
+ggplot(trips_2019_Q1, aes(x = birthyear)) +
+  geom_histogram(
+    binwidth = 10,        # width in years
+    boundary = 0,         # align bins on decades
+    fill = "seagreen",
+    color = "white"
+  ) +
+  scale_x_continuous(breaks = seq(1900, 2010, 10)) +
+  scale_y_continuous(labels = comma) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(
+    title = "Birth Years by Decade",
+    x = "Birth Year (10-year bins)",
+    y = "Number of Riders"
+  )
+
+```
+
+
+Result: Most of the entries make sense, although 171 rows with birth years under 1930
+will be excluded from the analysis.
+
+
+### 3.3 Transform the Data for Effective Analysis
+
+The main goal is to *stack* the two datasets even though
+their column names don’t match, but some columns contain equivalent information.
+
+We will follow four steps:
+
+#### 3.3.1  Identify the matching columns
+
+|   trips_2019_Q1   |    trips_2020_Q1   |
+|:-----------------:|:------------------:|
+| trip_id           | ride_id            |
+| start_time        | started_at         |
+| end_time          | ended_at           |
+| from_station_name | start_station_name |
+| from_station_id   | start_station_id   |
+| to_station_name   | end_station_name   |
+| to_station_id     | end_station_id     |
+| usertype          | member_casual      |
+| gender            | —                  |
+| birthyear         | —                  |
+| —                 | rideable_type      |
+| —                 | start_lat          |
+| —                 | start_lng          |
+| —                 | end_lat            |
+| —                 | end_lng            |
+
+
+#### 3.3.2. Rename columns so they match
+
+```{r rename columns, message = FALSE, warning=FALSE}
+trips_2019_Q1 <- trips_2019_Q1 %>%
+  rename(ride_id = trip_id,
+    started_at = start_time,
+    ended_at = end_time,
+    start_station_name = from_station_name,
+    start_station_id = from_station_id,
+    end_station_name = to_station_name,
+    end_station_id = to_station_id,
+    member_casual = usertype
+    )
+```
+
+convert ride_id in trips_2019_Q1 into character type to match ride_id in trips_2020_Q1
+
+```{r convert ride_id}
+trips_2019_Q1$ride_id <- as.character(trips_2019_Q1$ride_id)
+```
+
+
+#### 3.3.3. Fix inconsistencies
+
+##### **tripduration** column
+
+tripduration appears in the 2019 dataset, but as a character type, so we will
+convert it into an integer:
+
+```{r convert tripduration}
+trips_2019_Q1$tripduration <- as.integer(gsub(",", "", trips_2019_Q1$tripduration))
+# gsub() removes commas  
+```
+
+tripduration doesn't appear in the 2020 dataset, so we will add it as a difference
+between ended_at and started_at after both will be converted from character strings
+to date-time objects:
+
+```{r add tripduration column to dataset2}
+trips_2020_Q1 <- trips_2020_Q1 %>%
+  mutate(tripduration =
+           as.numeric(difftime(ymd_hms(ended_at),
+                               ymd_hms(started_at),
+                               units = "secs")))
+
+```
+
+##### **member_casual** column
+
+In trips_2019_Q1 dataset 'member' appears as 'Subscriber' and 'casual' as 'Customer'
+
+```{r fix member_casual inconsistency}
+
+trips_2019_Q1 <- trips_2019_Q1 %>%
+  mutate(member_casual = case_when(
+    member_casual == "Subscriber" ~ "member",
+    member_casual == "Customer" ~ "casual",
+    TRUE ~ member_casual # default case, don't modify
+  ))
+
+```
+
+
+#### 3.3.4 Add missing columns to each dataset
+
+```{r add all missing columns}
+# columns in trips_2020_Q1 but not trips_2019_Q1
+cols_not_in_trips_2019_Q1  <- setdiff(names(trips_2020_Q1), names(trips_2019_Q1))
+trips_2019_Q1[cols_not_in_trips_2019_Q1] <- NA
+
+# columns in trips_2019_Q1 but not trips_2020_Q1
+cols_not_in_trips_2020_Q1  <- setdiff(names(trips_2019_Q1), names(trips_2020_Q1))
+trips_2020_Q1[cols_not_in_trips_2020_Q1] <- NA
+```
+
+check if we now have the same column names in the two datasets:
+
+```{r check column names}
+colnames(trips_2019_Q1)
+colnames(trips_2020_Q1)
+```
+Although they are not in the same order,
+the 17 columns in the two datasets are now perfectly matched.
+
+#### 3.3.5 Bind together the two datasets
+
+```{r merge the two dataset}
+trips_2019_Q1_2020_Q1 <- bind_rows(trips_2019_Q1, trips_2020_Q1)
+```
+
+#### 3.3.6 Add day_of_the_week column
+
+```{r add day_of_the_week}
+trips_2019_Q1_2020_Q1 <- trips_2019_Q1_2020_Q1 %>%
+  mutate(day_of_the_week = wday(ymd_hms(started_at),
+                                label = TRUE,
+                                abbr = FALSE,
+                                week_start = 1))
+```
+
+#### 3.3.7 Explore the new combined dataset:
+
+```{r explore merged dataset}
+colnames(trips_2019_Q1_2020_Q1)
+str(trips_2019_Q1_2020_Q1)
+```
+
+## 4-5. Analyze & Share
+
+### 4.1 Members vs. Casual riders
+
+This is our analysis's starting point:
+
+```{r count by rider type}
+trips_2019_Q1_2020_Q1 %>%
+  count(member_casual)
+```
+
+
+```{r pie chart}
+
+trips_2019_Q1_2020_Q1 %>%
+  count(member_casual) %>%
+  mutate(perc = n / sum(n) * 100,
+         perc_label = paste0(round(perc, 1), "%")) %>%
+  ggplot(aes(x = "", y = n, fill = member_casual)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Member vs Casual Riders",
+       fill = "Rider Type") +
+  theme_void() +
+  geom_text(aes(label = perc_label),
+            position = position_stack(vjust = 0.5))
+
+```
+
+**Conclusion:** we have 71,643 casual riders, representing 9% of the total number of riders,
+meaning that Cyclistic already has a solid foundation of members.
+
+### 4.2 Average Ride Length for members and casual riders
+
+
+```{r viz for average ride length}
+trips_2019_Q1_2020_Q1 %>%
+  group_by(member_casual) %>%
+  summarise(avg_ride_length = round(mean(tripduration)/60, digits = 0)) %>%
+  ggplot() +
+  geom_bar(aes(x = member_casual, y = avg_ride_length, fill = member_casual),
+           stat = "identity") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Average Ride Length",
+       x = "User Type",
+       y = "minutes",
+       fill = "Rider Type")
+```
+
+**Conclusion:** casual riders have much longer rides on average
+
+### 4.3 Average Ride Length & Number of Rides for every Day of the Week
+
+```{r summary for average ride length & number of rides, message = FALSE, warning=FALSE}
+library(forcats)  # for factor manipulation
+
+day_of_week_summary <- trips_2019_Q1_2020_Q1 %>%
+  group_by(member_casual, day_of_the_week) %>%
+  summarise(
+    count = n(),
+    avg_ride_length = round(mean(tripduration) / 60, digits = 0)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    day_of_the_week = factor(
+      day_of_the_week,
+      levels = c("Monday", "Tuesday", "Wednesday", "Thursday",
+                 "Friday", "Saturday", "Sunday"),
+      ordered = TRUE
+    )
+  )
+  
+```
+
+plotting:
+
+```{r viz for ride count, message = FALSE, warning=FALSE}
+library(scales)  # for comma format on y-axis
+
+ggplot(data = day_of_week_summary,
+       aes(x = day_of_the_week, y = count, fill = member_casual)) +
+  geom_col(position = position_dodge()) + # clustered bars
+  scale_y_continuous(labels = comma) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Ride Count by Day and Rider Type",
+       x = "Day of Week",
+       y = "Number of Rides",
+       fill = "Rider Type")
+
+```
+
+**Conclusion:** casual riders ride more often in the weekend, while members
+ride more often during weekdays.
+
+
+```{r viz for ride length, message = FALSE, warning=FALSE}
+
+ggplot(data = day_of_week_summary,
+       aes(x = day_of_the_week, y = avg_ride_length, fill = member_casual)) +
+  geom_col(position = position_dodge()) +  # clustered bars
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Average Ride Length by Day and Rider Type",
+       x = "Day of Week",
+       y = "minutes",
+       fill = "Rider Type")
+
+```
+
+**Conclusion:** members' ride lengths are not influenced significantly by the
+day of the week, probably using their usual routes.
+
+### 4.4 Top 10 Stations for casual riders
+
+First, we summarise and rank the stations:
+
+```{r station ranking}
+top10_stations <- trips_2019_Q1_2020_Q1 %>%
+  filter(member_casual == "casual") %>%
+  count(start_station_name, sort = TRUE) %>%       # count rides per station
+  slice_max(n, n = 10) %>%                         # take top 10
+  mutate(start_station_name = reorder(start_station_name, n))  # reorder for plotting
+```
+
+The plot will be a Ranked Horizontal Bar Chart:
+
+```{r viz for station ranking, message = FALSE, warning=FALSE}
+ggplot(data = top10_stations,
+       aes(x = start_station_name, y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +   # flip to horizontal
+    theme(plot.title = element_text(hjust = 0.5)) +
+  labs(title = "Top 10 Start Stations",
+       x = "Start Station",
+       y = "Number of Trips")
+```
+
+**Conclusion:** We have three stations, which are clearly in front of the others
+in terms of ride count.
+
+### 4.5 Gender Distribution for members/casual riders
+
+Summarizing gender counts for each rider type:
+
+```{r gender summary}
+gender_summary <- trips_2019_Q1_2020_Q1 %>%
+  filter(!is.na(gender) & gender != "") %>%   # drop NAs and missing values
+  count(member_casual, gender) %>%
+  group_by(member_casual) %>%
+  mutate(
+    perc = n / sum(n) * 100,
+    perc_label = paste0(round(perc, 1), "%")
+  )
+```
+
+Plot the charts:
+
+```{r gender viz, message = FALSE, warning=FALSE}
+ggplot(gender_summary, aes(x = "", y = perc, fill = gender)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y") +
+  facet_wrap(~ member_casual) +
+  geom_text(aes(label = perc_label),
+            position = position_stack(vjust = 0.5)) +
+  labs(title = "Gender Distribution by Rider Type",
+       fill = "Gender") +
+  theme_void() + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+**Conclusion:** there are more Female riders in terms of weight (percentage)
+among casual riders
+
+### 4.6 Casual riders' Birthyear Distribution
+
+As we decided at 3.2.4, we will exclude from the analysis all birth years < 1930,
+together with all NA values.
+
+```{r birthyear filter}
+birthyear_data <- trips_2019_Q1_2020_Q1 %>%
+  filter(member_casual == "casual" &
+           !is.na(birthyear) &
+           birthyear >= 1930)
+```
+
+For plotting, we will use a histogram with 10-year bins.
+
+```{r birthyear viz, message = FALSE, warning=FALSE}
+library(scales)
+
+ggplot(birthyear_data, aes(x = birthyear)) +
+  geom_histogram(binwidth = 10,
+                 boundary = 0, # displays bins for decades (30s, 40s, etc.)
+                 fill = "steelblue",
+                 color = "white") +
+  scale_x_continuous(breaks = seq(1930, 2010, 10)) +
+  scale_y_continuous(labels = comma) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+  labs(
+    title = "Casual Rider Distribution by Birth Year",
+    x = "Birth Year (10-year bins)",
+    y = "Number of Riders"
+  )
+```
+
+**Conclusion:** the vast majority of the riders are younger people between
+20 and 40 years of age. Most of them are under 30.
+
+## 6. Act
+
+Our **Top Three Recommendations** to *convert casual riders into annual members*,
+based on the above analysis are:
+
+
+### 6.1 Promo Plan for Members
+
+Casual riders have much longer rides on average, and they tend to ride
+more often on the weekend.
+
+Our recommendation is to implement a promo plan for members with discounts for
+longer rides and also for weekend rides to make membership more attractive for
+casual riders.
+
+Also, this way, since current members ride much less often on the weekends,
+the unused bikes could be put to use.
+
+### 6.2 On-Site Trade-Marketing Promotion
+
+In the top three stations trafficked by casual riders, organize on-site trade
+marketing activities.
+
+These stations are:
+
+* HQ QR
+* Streeter Dr & Grand Ave
+* Lake Shore Dr & Monroe St
+
+### 6.3 Focus on some of the Customer Categories
+
+Target specific customer categories based on their weight among casual riders,
+such as rider in their 20s.
+
+
+
