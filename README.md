@@ -1,5 +1,6 @@
 # cyclistic-bike-share-analysis
 Cyclistic bike-share case study: data analysis of casual vs. member riders (Google Data Analytics Capstone)
+On Kaggle: [Cyclistic Case Study - Casual vs Member Riders](https://www.kaggle.com/code/tiborjanosy/cyclistic-case-study-casual-vs-member-riders)
 
 Project Overview:
 This project is the Capstone Case Study for the Google Data Analytics Professional Certificate.
@@ -10,6 +11,8 @@ Dataset:
 The dataset contains two CSV files:
 Divvy_Trips_2019_Q1.csv
 Divvy_Trips_2020_Q1.csv
+https://www.kaggle.com/datasets/tiborjanosy/cyclistic-case-study-data
+[Cyclistic Case Study Data](https://www.kaggle.com/datasets/tiborjanosy/cyclistic-case-study-data)
 
 It includes ride details such as:
 Trip start & end times
